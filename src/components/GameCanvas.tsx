@@ -4,7 +4,7 @@ import { supabase, Player, Food } from '../lib/supabase';
 const WORLD_WIDTH = 5000;
 const WORLD_HEIGHT = 5000;
 const CELL_SIZE = 40;
-const INITIAL_SNAKE_LENGTH = 20;
+const INITIAL_SNAKE_LENGTH = 22;
 const SEGMENT_SPACING = 6;
 const BASE_SPEED = 3;
 const BOOST_SPEED = 6;
@@ -453,7 +453,7 @@ export default function GameCanvas({ playerName, onGameOver }: GameCanvasProps) 
     width: number,
     height: number
   ) => {
-    const hexSize = 50;
+    const hexSize = 55;
     const hexHeight = hexSize * Math.sqrt(3);
     const hexWidth = hexSize * 2;
 
@@ -462,14 +462,23 @@ export default function GameCanvas({ playerName, onGameOver }: GameCanvasProps) 
     const startY = Math.floor((cameraY - height / 2) / hexHeight) - 1;
     const endY = Math.ceil((cameraY + height / 2) / hexHeight) + 1;
 
-    ctx.fillStyle = '#323646';
-    ctx.strokeStyle = '#3f4251';
-    ctx.lineWidth = 2;
-
     for (let row = startY; row <= endY; row++) {
       for (let col = startX; col <= endX; col++) {
         const x = col * hexWidth * 0.75;
         const y = row * hexHeight + (col % 2) * hexHeight / 2;
+
+        const gradient = ctx.createRadialGradient(
+          x + offsetX, y + offsetY, 0,
+          x + offsetX, y + offsetY, hexSize
+        );
+        gradient.addColorStop(0, '#3a3d4f');
+        gradient.addColorStop(0.7, '#32354a');
+        gradient.addColorStop(1, '#2a2d3e');
+
+        ctx.fillStyle = gradient;
+        ctx.strokeStyle = '#42455a';
+        ctx.lineWidth = 2.5;
+        ctx.lineJoin = 'round';
 
         ctx.beginPath();
         for (let i = 0; i < 6; i++) {
@@ -529,41 +538,59 @@ export default function GameCanvas({ playerName, onGameOver }: GameCanvasProps) 
     isCurrentPlayer: boolean
   ) => {
     const segments = player.segments;
-    const baseRadius = 11 + player.score * 0.08;
+    const baseRadius = 12 + player.score * 0.08;
+
+    if (segments.length > 0) {
+      const head = segments[0];
+      const x = head.x + offsetX;
+      const y = head.y + offsetY;
+
+      const glowGradient = ctx.createRadialGradient(x, y, 0, x, y, baseRadius * 3);
+      glowGradient.addColorStop(0, `${player.color}80`);
+      glowGradient.addColorStop(0.3, `${player.color}40`);
+      glowGradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = glowGradient;
+      ctx.beginPath();
+      ctx.arc(x, y, baseRadius * 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
     for (let i = segments.length - 1; i >= 0; i--) {
       const seg = segments[i];
-      const radius = Math.max(baseRadius * (1 - i * 0.01 / segments.length), 7);
+      const radius = Math.max(baseRadius * (1 - i * 0.008 / segments.length), 8);
       const x = seg.x + offsetX;
       const y = seg.y + offsetY;
 
-      const gradient = ctx.createRadialGradient(
-        x - radius * 0.35, y - radius * 0.35, radius * 0.1,
-        x, y, radius
+      const bodyGradient = ctx.createRadialGradient(
+        x - radius * 0.4, y - radius * 0.4, 0,
+        x, y, radius * 1.2
       );
-      const lighterColor = adjustColorBrightness(player.color, 35);
-      gradient.addColorStop(0, lighterColor);
-      gradient.addColorStop(0.7, player.color);
-      gradient.addColorStop(1, adjustColorBrightness(player.color, -20));
+      const lighterColor = adjustColorBrightness(player.color, 50);
+      bodyGradient.addColorStop(0, lighterColor);
+      bodyGradient.addColorStop(0.5, player.color);
+      bodyGradient.addColorStop(1, adjustColorBrightness(player.color, -30));
 
-      ctx.fillStyle = gradient;
+      ctx.fillStyle = bodyGradient;
       ctx.beginPath();
       ctx.arc(x, y, radius, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
-      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+      ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(x, y, radius, 0, Math.PI * 2);
       ctx.stroke();
 
-      if (i % 3 === 0) {
-        const stripeGradient = ctx.createRadialGradient(x, y, 0, x, y, radius * 0.9);
-        stripeGradient.addColorStop(0, 'rgba(255, 255, 255, 0.15)');
-        stripeGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
-        ctx.fillStyle = stripeGradient;
+      if (i % 2 === 0) {
+        const highlightGradient = ctx.createRadialGradient(
+          x - radius * 0.3, y - radius * 0.3, 0,
+          x, y, radius * 0.7
+        );
+        highlightGradient.addColorStop(0, 'rgba(255, 255, 255, 0.25)');
+        highlightGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        ctx.fillStyle = highlightGradient;
         ctx.beginPath();
-        ctx.arc(x, y, radius * 0.9, 0, Math.PI * 2);
+        ctx.arc(x, y, radius * 0.7, 0, Math.PI * 2);
         ctx.fill();
       }
     }
@@ -574,12 +601,12 @@ export default function GameCanvas({ playerName, onGameOver }: GameCanvasProps) 
       const y = head.y + offsetY;
 
       ctx.fillStyle = 'white';
-      ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
-      ctx.lineWidth = 2;
-      const eyeOffset = baseRadius * 0.5;
-      const eyeSize = baseRadius * 0.22;
-      const eyeAngle1 = player.angle + Math.PI / 6;
-      const eyeAngle2 = player.angle - Math.PI / 6;
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
+      ctx.lineWidth = 2.5;
+      const eyeOffset = baseRadius * 0.52;
+      const eyeSize = baseRadius * 0.28;
+      const eyeAngle1 = player.angle + Math.PI / 5.5;
+      const eyeAngle2 = player.angle - Math.PI / 5.5;
 
       const eye1X = x + Math.cos(eyeAngle1) * eyeOffset;
       const eye1Y = y + Math.sin(eyeAngle1) * eyeOffset;
@@ -588,12 +615,12 @@ export default function GameCanvas({ playerName, onGameOver }: GameCanvasProps) 
       ctx.fill();
       ctx.stroke();
 
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.95)';
       ctx.beginPath();
       ctx.arc(
-        eye1X + Math.cos(player.angle) * eyeSize * 0.4,
-        eye1Y + Math.sin(player.angle) * eyeSize * 0.4,
-        eyeSize * 0.55,
+        eye1X + Math.cos(player.angle) * eyeSize * 0.35,
+        eye1Y + Math.sin(player.angle) * eyeSize * 0.35,
+        eyeSize * 0.6,
         0,
         Math.PI * 2
       );
@@ -605,29 +632,29 @@ export default function GameCanvas({ playerName, onGameOver }: GameCanvasProps) 
       const eye2Y = y + Math.sin(eyeAngle2) * eyeOffset;
       ctx.arc(eye2X, eye2Y, eyeSize, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
       ctx.stroke();
 
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.95)';
       ctx.beginPath();
       ctx.arc(
-        eye2X + Math.cos(player.angle) * eyeSize * 0.4,
-        eye2Y + Math.sin(player.angle) * eyeSize * 0.4,
-        eyeSize * 0.55,
+        eye2X + Math.cos(player.angle) * eyeSize * 0.35,
+        eye2Y + Math.sin(player.angle) * eyeSize * 0.35,
+        eyeSize * 0.6,
         0,
         Math.PI * 2
       );
       ctx.fill();
 
       if (!isCurrentPlayer) {
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
-        ctx.shadowBlur = 4;
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+        ctx.shadowBlur = 5;
         ctx.shadowOffsetX = 2;
         ctx.shadowOffsetY = 2;
         ctx.fillStyle = 'white';
-        ctx.font = 'bold 14px Arial';
+        ctx.font = 'bold 13px Arial';
         ctx.textAlign = 'center';
-        ctx.fillText(player.name, x, y - baseRadius - 12);
+        ctx.fillText(player.name, x, y - baseRadius - 14);
         ctx.shadowColor = 'transparent';
         ctx.shadowBlur = 0;
         ctx.shadowOffsetX = 0;
@@ -648,11 +675,11 @@ export default function GameCanvas({ playerName, onGameOver }: GameCanvasProps) 
     const ctx = canvas.getContext('2d');
     if (!ctx || !playerRef.current) return;
 
-    ctx.fillStyle = 'rgba(40, 42, 54, 0.9)';
-    ctx.fillRect(0, 0, 176, 176);
+    ctx.fillStyle = 'rgba(30, 32, 42, 0.95)';
+    ctx.fillRect(0, 0, 192, 192);
 
-    const scaleX = 176 / WORLD_WIDTH;
-    const scaleY = 176 / WORLD_HEIGHT;
+    const scaleX = 192 / WORLD_WIDTH;
+    const scaleY = 192 / WORLD_HEIGHT;
 
     otherPlayersRef.current.forEach(player => {
       ctx.fillStyle = player.color;
@@ -660,7 +687,7 @@ export default function GameCanvas({ playerName, onGameOver }: GameCanvasProps) 
       ctx.arc(
         player.position_x * scaleX,
         player.position_y * scaleY,
-        1.5,
+        2,
         0,
         Math.PI * 2
       );
@@ -669,21 +696,21 @@ export default function GameCanvas({ playerName, onGameOver }: GameCanvasProps) 
 
     ctx.fillStyle = '#7FFF00';
     ctx.strokeStyle = 'white';
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(
       playerRef.current.position_x * scaleX,
       playerRef.current.position_y * scaleY,
-      2.5,
+      3,
       0,
       Math.PI * 2
     );
     ctx.fill();
     ctx.stroke();
 
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
     ctx.lineWidth = 1;
-    ctx.strokeRect(0, 0, 176, 176);
+    ctx.strokeRect(1, 1, 190, 190);
   };
 
   const cleanup = async () => {
@@ -697,11 +724,11 @@ export default function GameCanvas({ playerName, onGameOver }: GameCanvasProps) 
     <div className="relative w-full h-screen overflow-hidden">
       <canvas ref={canvasRef} className="absolute inset-0" />
 
-      <div className="absolute bottom-4 left-4 text-white" style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.8)' }}>
-        <div className="text-xs opacity-70 font-normal">Your length: <span className="font-bold">{score}</span></div>
+      <div className="absolute bottom-3 left-3 text-white" style={{ textShadow: '1px 1px 3px rgba(0,0,0,0.8)', fontFamily: 'Arial, sans-serif' }}>
+        <div className="text-sm font-normal" style={{ color: '#d0d0d0' }}>Your length: <span className="font-semibold" style={{ color: 'white' }}>{score}</span></div>
         {playerIdRef.current && leaderboard.length > 0 && (
-          <div className="text-xs opacity-70 font-normal">
-            Your rank: <span className="font-bold">{leaderboard.findIndex(p => p.id === playerIdRef.current) + 1 || '?'}</span> of <span className="font-bold">{leaderboard.length}</span>
+          <div className="text-sm font-normal" style={{ color: '#d0d0d0' }}>
+            Your rank: <span className="font-semibold" style={{ color: 'white' }}>{leaderboard.findIndex(p => p.id === playerIdRef.current) + 1 || '?'}</span> of <span className="font-semibold" style={{ color: 'white' }}>{leaderboard.length}</span>
           </div>
         )}
       </div>
@@ -735,18 +762,18 @@ export default function GameCanvas({ playerName, onGameOver }: GameCanvasProps) 
         </div>
       </div>
 
-      <div className="absolute bottom-4 right-4 w-44 h-44 border-2 border-white/30 rounded overflow-hidden" style={{ backgroundColor: 'rgba(0, 0, 0, 0.4)' }}>
+      <div className="absolute bottom-3 right-3 w-48 h-48 border-2 rounded overflow-hidden" style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)', borderColor: 'rgba(255, 255, 255, 0.2)' }}>
         <canvas
           ref={(canvas) => {
             if (canvas && playerRef.current) {
               renderMinimap(canvas);
             }
           }}
-          width={176}
-          height={176}
+          width={192}
+          height={192}
           className="w-full h-full"
         />
-        <div className="absolute bottom-1 left-1/2 -translate-x-1/2 text-white text-xs opacity-60 font-medium" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}>slither.io</div>
+        <div className="absolute bottom-1 right-2 text-white text-xs font-normal" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.9)', color: '#a0a0a0' }}>server 4164</div>
       </div>
 
 
