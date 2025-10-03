@@ -7,7 +7,7 @@ interface GameOverScreenProps {
 
 export default function GameOverScreen({ score, onRestart }: GameOverScreenProps) {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-red-900 to-slate-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-800 via-slate-900 to-slate-800 flex items-center justify-center p-4" style={{ backgroundColor: '#2d3142' }}>
       <div className="w-full max-w-md text-center">
         <div className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-red-400 to-orange-500 rounded-full mb-6 animate-pulse">
           <Trophy className="w-12 h-12 text-white" />

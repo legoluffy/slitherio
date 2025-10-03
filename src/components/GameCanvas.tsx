@@ -28,6 +28,7 @@ export default function GameCanvas({ playerName, onGameOver }: GameCanvasProps) 
   const playerRef = useRef<Player | null>(null);
   const otherPlayersRef = useRef<Map<string, Player>>(new Map());
   const foodRef = useRef<Map<string, Food>>(new Map());
+  const boostParticlesRef = useRef<Array<{ x: number; y: number; life: number }>>([]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -248,7 +249,29 @@ export default function GameCanvas({ playerName, onGameOver }: GameCanvasProps) 
 
     playerRef.current.angle = targetAngle;
 
-    const speed = (isBoostingRef.current ? BOOST_SPEED : BASE_SPEED) * deltaTime;
+    let speed = (isBoostingRef.current ? BOOST_SPEED : BASE_SPEED) * deltaTime;
+
+    if (isBoostingRef.current && playerRef.current.score > INITIAL_SNAKE_LENGTH) {
+      if (Math.random() < 0.3) {
+        playerRef.current.score = Math.max(INITIAL_SNAKE_LENGTH, playerRef.current.score - 0.1);
+        setScore(Math.floor(playerRef.current.score));
+      }
+
+      if (Math.random() < 0.5) {
+        const tailSeg = playerRef.current.segments[Math.floor(playerRef.current.segments.length * 0.7)];
+        if (tailSeg) {
+          boostParticlesRef.current.push({
+            x: tailSeg.x + (Math.random() - 0.5) * 10,
+            y: tailSeg.y + (Math.random() - 0.5) * 10,
+            life: 1.0
+          });
+        }
+      }
+    }
+
+    boostParticlesRef.current = boostParticlesRef.current
+      .map(p => ({ ...p, life: p.life - 0.02 }))
+      .filter(p => p.life > 0);
 
     const newX = playerRef.current.position_x + Math.cos(targetAngle) * speed;
     const newY = playerRef.current.position_y + Math.sin(targetAngle) * speed;
@@ -406,6 +429,15 @@ export default function GameCanvas({ playerName, onGameOver }: GameCanvasProps) 
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     drawHexagonPattern(ctx, cameraX, cameraY, offsetX, offsetY, canvas.width, canvas.height);
+
+    boostParticlesRef.current.forEach(particle => {
+      const alpha = particle.life;
+      const size = 3 * particle.life;
+      ctx.fillStyle = `rgba(255, 255, 100, ${alpha * 0.6})`;
+      ctx.beginPath();
+      ctx.arc(particle.x + offsetX, particle.y + offsetY, size, 0, Math.PI * 2);
+      ctx.fill();
+    });
 
     foodRef.current.forEach(food => {
       renderFood(ctx, food, offsetX, offsetY);
@@ -627,6 +659,44 @@ export default function GameCanvas({ playerName, onGameOver }: GameCanvasProps) 
     return `rgb(${r}, ${g}, ${b})`;
   };
 
+  const renderMinimap = (canvas: HTMLCanvasElement) => {
+    const ctx = canvas.getContext('2d');
+    if (!ctx || !playerRef.current) return;
+
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.fillRect(0, 0, 192, 192);
+
+    const scaleX = 192 / WORLD_WIDTH;
+    const scaleY = 192 / WORLD_HEIGHT;
+
+    otherPlayersRef.current.forEach(player => {
+      ctx.fillStyle = player.color;
+      ctx.beginPath();
+      ctx.arc(
+        player.position_x * scaleX,
+        player.position_y * scaleY,
+        2,
+        0,
+        Math.PI * 2
+      );
+      ctx.fill();
+    });
+
+    ctx.fillStyle = 'white';
+    ctx.strokeStyle = 'black';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(
+      playerRef.current.position_x * scaleX,
+      playerRef.current.position_y * scaleY,
+      3,
+      0,
+      Math.PI * 2
+    );
+    ctx.fill();
+    ctx.stroke();
+  };
+
   const cleanup = async () => {
     if (playerIdRef.current) {
       await supabase.from('players').delete().eq('id', playerIdRef.current);
@@ -641,6 +711,11 @@ export default function GameCanvas({ playerName, onGameOver }: GameCanvasProps) 
       <div className="absolute top-4 left-4 text-white">
         <div className="text-sm opacity-60 font-medium">Your length</div>
         <div className="text-3xl font-bold tracking-tight">{score}</div>
+        {playerIdRef.current && (
+          <div className="text-sm opacity-60 font-medium mt-1">
+            Your rank: #{leaderboard.findIndex(p => p.id === playerIdRef.current) + 1 || 'N/A'} of {leaderboard.length}
+          </div>
+        )}
       </div>
 
       <div className="absolute top-4 right-4 text-white min-w-[280px]">
@@ -664,6 +739,26 @@ export default function GameCanvas({ playerName, onGameOver }: GameCanvasProps) 
           ))}
         </div>
       </div>
+
+      <div className="absolute bottom-4 right-4 w-48 h-48 border-2 border-white/20 rounded-lg overflow-hidden bg-black/30">
+        <canvas
+          ref={(canvas) => {
+            if (canvas && playerRef.current) {
+              renderMinimap(canvas);
+            }
+          }}
+          width={192}
+          height={192}
+          className="w-full h-full"
+        />
+        <div className="absolute bottom-2 right-2 text-white text-xs opacity-60 font-medium">Map</div>
+      </div>
+
+      {isBoostingRef.current && (
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
+          <div className="text-yellow-400 text-2xl font-bold animate-pulse">BOOST!</div>
+        </div>
+      )}
 
       <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-white text-center opacity-60">
         <div className="text-sm font-medium">Move: Mouse • Boost: Hold Click</div>
